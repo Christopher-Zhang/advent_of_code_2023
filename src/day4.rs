@@ -36,7 +36,6 @@ pub fn advent(data: String) -> u32 {
                 }
             }
         }
-
         result += score;
 
     }
