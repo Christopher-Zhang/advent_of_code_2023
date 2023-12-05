@@ -67,12 +67,10 @@ pub async fn advent_2(data: String) -> u64 {
             let range = Ranges {
                 dest, source
             };
-
             stage.push(range);
         }
         stages.push(stage);
     }
-    // dbg!(&stages);
     let seeds: Vec<(&u64, &u64)> = seeds.iter().tuples().collect();
     let min: u64 = seeds.par_iter().map(|(first, last)| {
         let first = first.clone().clone();
