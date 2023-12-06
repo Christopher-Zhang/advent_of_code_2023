@@ -1,10 +1,10 @@
 use std::str;
+use std::time::Instant;
 use std::fs;
 use anyhow::Result;
 
-use crate::day5::{advent, advent_2};
-// use crate::util::get_problem_data;
-mod day5;
+use crate::day6::{advent, advent_2};
+mod day6;
 mod util;
 
 #[tokio::main]
@@ -12,10 +12,18 @@ async fn main() -> Result<()> {
     let path = "./input";
     let data = fs::read_to_string(path).unwrap();
 
+    let now = Instant::now();
     let result = advent(data.clone()).await;
     println!("Final total part 1: {}", result);
+    let elapsed = now.elapsed();
+    println!("Part 1 finished in {:.2?}", elapsed);
 
+    
+    let now = Instant::now();
     let result = advent_2(data).await;
     println!("Final total part 2: {}", result);
+    let elapsed = now.elapsed();
+    println!("Part 2 finished in {:.2?}", elapsed);
+
     Ok(())
 }
