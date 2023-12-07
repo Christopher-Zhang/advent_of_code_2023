@@ -1,11 +1,10 @@
-use std::str;
 use std::time::Instant;
 use std::fs;
 use anyhow::Result;
 
-use crate::day6::{advent, advent_2};
-mod day6;
-mod util;
+use crate::day7::{advent, advent_2};
+mod day7;
+// mod util;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -17,8 +16,7 @@ async fn main() -> Result<()> {
     println!("Final total part 1: {}", result);
     let elapsed = now.elapsed();
     println!("Part 1 finished in {:.2?}", elapsed);
-
-    
+ 
     let now = Instant::now();
     let result = advent_2(data).await;
     println!("Final total part 2: {}", result);
