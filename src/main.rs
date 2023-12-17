@@ -2,8 +2,8 @@ use std::time::Instant;
 use std::fs;
 use anyhow::Result;
 
-use crate::day16::{advent, advent_2};
-mod day16;
+use crate::day17::{advent, advent_2};
+mod day17;
 // mod util;
 
 #[tokio::main]
