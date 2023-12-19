@@ -21,6 +21,7 @@ pub async fn advent(data: String) -> usize {
         grid.push(row);
     }
 
+    answer = djikstra(Point{x:0,y:0}, Point{x:(grid[0].len()-1) as i32, y:(grid.len()-1) as i32}, grid);
 
     return answer;
 }
@@ -30,12 +31,12 @@ pub async fn advent(data: String) -> usize {
 //     y: i32,
 //     dist: usize
 // }
-#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 struct Point {
     x: i32,
     y: i32,
 }
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 struct Node {
     point: Point,
     steps: usize,
@@ -59,24 +60,33 @@ fn djikstra(start: Point, target: Point, grid: Grid) -> usize {
             distance = std::cmp::min(distance, dist);
             continue;
         }
-        
+        let cur_dist = grid[y as usize][x as usize];
         if !seen.contains(&node) {
             seen.insert(node.clone());
             let dirs = get_next_dirs(node.dir, node.steps == 3);
             for dir in dirs {
                 let next_point = get_next_point(node.point, dir);
                 let steps = node.steps;
+                let new_node: Node;
                 if node.dir == dir {
-
+                    new_node = Node {
+                        point: next_point,
+                        steps: steps + 1,
+                        dir
+                    };
                 }
-                // let new_node = Node {
-                //     point: next_point,
-                //     steps
-                // }
+                else {
+                    new_node = Node {
+                        point:next_point,
+                        steps,
+                        dir
+                    };
+                }
+                queue.push(new_node, dist + cur_dist);
             }
         }
     }
-    0
+    distance
 }
 
 fn get_next_point(point: Point, dir: Direction) -> Point {
