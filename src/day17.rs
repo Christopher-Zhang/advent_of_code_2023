@@ -1,4 +1,4 @@
-use std::collections::{VecDeque, HashSet};
+use std::collections::{VecDeque, HashSet, HashMap};
 use priority_queue::PriorityQueue;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
@@ -46,8 +46,9 @@ struct Node {
 fn djikstra(start: Point, target: Point, grid: Grid) -> usize {
     let mut queue: PriorityQueue<Node, usize> = PriorityQueue::new();
     queue.push(Node{point: start, steps: 0, dir: Direction::None}, 0);
+    let mut paths: HashMap<Node, Vec<Point>> = HashMap::new();
 
-    let mut seen: HashSet<Node> = HashSet::new();
+    let mut seen: HashMap<Node, usize> = HashMap::new();
     let mut distance = usize::MAX;
     while !queue.is_empty() {
         let (node, dist) = queue.pop().unwrap();
@@ -61,30 +62,34 @@ fn djikstra(start: Point, target: Point, grid: Grid) -> usize {
             continue;
         }
         let cur_dist = grid[y as usize][x as usize];
-        if !seen.contains(&node) {
-            seen.insert(node.clone());
-            let dirs = get_next_dirs(node.dir, node.steps == 3);
-            for dir in dirs {
-                let next_point = get_next_point(node.point, dir);
-                let steps = node.steps;
-                let new_node: Node;
-                if node.dir == dir {
-                    new_node = Node {
-                        point: next_point,
-                        steps: steps + 1,
-                        dir
-                    };
-                }
-                else {
-                    new_node = Node {
-                        point:next_point,
-                        steps,
-                        dir
-                    };
-                }
-                queue.push(new_node, dist + cur_dist);
+        if seen.contains_key(&node) {
+            if seen.get(&node).unwrap() <= &dist {
+                continue;
             }
         }
+        seen.insert(node.clone(), dist);
+        let dirs = get_next_dirs(node.dir, node.steps == 3);
+        for dir in dirs {
+            let next_point = get_next_point(node.point, dir);
+            let steps = node.steps;
+            let new_node: Node;
+            if node.dir == dir {
+                new_node = Node {
+                    point: next_point,
+                    steps: steps + 1,
+                    dir
+                };
+            }
+            else {
+                new_node = Node {
+                    point:next_point,
+                    steps: 1,
+                    dir
+                };
+            }
+            queue.push(new_node, dist + cur_dist);
+        }
+        
     }
     distance
 }
