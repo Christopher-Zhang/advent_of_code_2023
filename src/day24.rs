@@ -1,7 +1,4 @@
-use ndarray::prelude::*;
-use ndarray_linalg::Solve;
-use z3::{Config, Context, Solver}; 
-use z3d::{dec, exp};
+use z3::{*, ast::Ast};
 use anyhow::{Result, anyhow};
 
 extern crate z3;
@@ -52,12 +49,8 @@ fn solve1(bounds: (f64, f64), hailstones: &Vec<Hailstone>) -> usize {
         for j in i + 1..hailstones.len() {
             if let Ok(intersects) = intersect1(bounds, &hailstones[i], &hailstones[j]) {
                 if intersects {
-                    // println!("{:?} intersects {:?}", i, j);
                     count += 1;
                 }
-            }
-            else {
-                // println!("{:?} failed with {:?}", i, j);
             }
         }
     }
@@ -80,90 +73,98 @@ fn intersect1(bounds: (f64, f64), h1: &Hailstone, h2: &Hailstone) -> Result<bool
     }
     let x = (b1 - b2) / (m2 - m1);
     let y = m1 * x + b1;
-    // println!("intersect at {x}, {y}");
-    // println!("{:?}", bounds);
     let t1 = (x - h1.position.x) / h1.velocity.x;
     let t2 = (x - h2.position.x) / h2.velocity.x;
     Ok(t1 >= 0. && t2 >= 0. && x >= bounds.0 && x <= bounds.1 && y >= bounds.0 && y <= bounds.1)
-    // let a: Array2<f64> = array![[h1.velocity.x, -h2.velocity.x], [h1.velocity.y, -h2.velocity.y]];
-    // let b: Array1<f64> = array![h1.position.x - h2.position.x, h1.position.y - h2.position.y];
-    // let x = a.solve(&b)?[0];
-    
-    // return Ok(x >= bounds.0 && x <= bounds.1);
-    // Ok(true)
 }
 pub async fn advent(data: String) -> usize {
     let hailstones = parse1(data);
     return solve1((200_000_000_000_000., 400_000_000_000_000.), &hailstones);
-    // return solve1((7., 27.), &hailstones);
+    // return solve1((7., 27.), &hailstones); // example data
 }
 
 
 fn solve2(hailstones: Vec<Hailstone>) -> usize {
-    let mut a: Array2<f64> = Array2::zeros((hailstones.len() * 3,6));
-    let mut b: Array1<f64> = Array1::zeros(7);
-    // dbg!(a);
-    // Xt + a = x
-    // Yt + b = y
-    // Zt + c = z
-    // t = (z-c)/Z
-    // X(z-c)/Z + a = x
-    // Y(z-c)/Z + b = y
-    // x y z a b c t1 t2 t3
-    let ctx = &Context::new(&Config::default());   // we declare constants in a Context
-    let solver = Solver::new(ctx); 
-    
-    // let x = dec!(x: real in ctx);
-    // let y = dec!(y: real in ctx);
-    // let z = dec!(z: real in ctx);
-    // let a = dec!(a: real in ctx);
-    // let b = dec!(b: real in ctx);
-    // let c = dec!(c: real in ctx);
-    // let t1 = dec!(t1: real in ctx);
-    // let t2 = dec!(t2: real in ctx);
-    // let t3 = dec!(t3: real in ctx);
-    let x1 = ctx.from_f64(hailstones[0].velocity.x);
-    let y1 = ctx.from_f64(hailstones[0].velocity.y);
-    let z1 = ctx.from_f64(hailstones[0].velocity.z);
-    let a1 = ctx.from_f64(hailstones[0].position.x);
-    let b1 = ctx.from_f64(hailstones[0].position.y);
-    let c1 = ctx.from_f64(hailstones[0].position.z);
-    let x2 = ctx.from_f64(hailstones[1].velocity.x);
-    let y2 = ctx.from_f64(hailstones[1].velocity.y);
-    let z2 = ctx.from_f64(hailstones[1].velocity.z);
-    let a2 = ctx.from_f64(hailstones[1].position.x);
-    let b2 = ctx.from_f64(hailstones[1].position.y);
-    let c2 = ctx.from_f64(hailstones[1].position.z);
-    let x3 = ctx.from_f64(hailstones[2].velocity.x);
-    let y3 = ctx.from_f64(hailstones[2].velocity.y);
-    let z3 = ctx.from_f64(hailstones[2].velocity.z);
-    let a3 = ctx.from_f64(hailstones[2].position.x);
-    let b3 = ctx.from_f64(hailstones[2].position.y);
-    let c3 = ctx.from_f64(hailstones[2].position.z);
-    let x = ctx.named_real_const("x");
-    let y = ctx.named_real_const("y");
-    let z = ctx.named_real_const("z");
-    let a = ctx.named_real_const("a");
-    let b = ctx.named_real_const("b");
-    let c = ctx.named_real_const("c");
-    let t1 = ctx.named_real_const("t1");
-    let t2 = ctx.named_real_const("t2");
-    let t3 = ctx.named_real_const("t3");
+    let cfg = Config::new();
+    let ctx = Context::new(&cfg);
+    let solver = Solver::new(&ctx);
 
-    let e1 = x.mul(&t1).add();
-    // let e2 = ;
-    // let e3 = ;
-    // let e4 = ;
-    // let e5 = ;
-    // let e6 = ;
-    // let e7 = ;
-    // let e8 = ;
-    // let e9 = ;
+    let x1 = ast::Int::from_i64(&ctx, hailstones[0].velocity.x as i64);
+    let y1 = ast::Int::from_i64(&ctx, hailstones[0].velocity.y as i64);
+    let z1 = ast::Int::from_i64(&ctx, hailstones[0].velocity.z as i64);
+    let a1 = ast::Int::from_i64(&ctx, hailstones[0].position.x as i64);
+    let b1 = ast::Int::from_i64(&ctx, hailstones[0].position.y as i64);
+    let c1 = ast::Int::from_i64(&ctx, hailstones[0].position.z as i64);
+    let x2 = ast::Int::from_i64(&ctx, hailstones[1].velocity.x as i64);
+    let y2 = ast::Int::from_i64(&ctx, hailstones[1].velocity.y as i64);
+    let z2 = ast::Int::from_i64(&ctx, hailstones[1].velocity.z as i64);
+    let a2 = ast::Int::from_i64(&ctx, hailstones[1].position.x as i64);
+    let b2 = ast::Int::from_i64(&ctx, hailstones[1].position.y as i64);
+    let c2 = ast::Int::from_i64(&ctx, hailstones[1].position.z as i64);
+    let x3 = ast::Int::from_i64(&ctx, hailstones[2].velocity.x as i64);
+    let y3 = ast::Int::from_i64(&ctx, hailstones[2].velocity.y as i64);
+    let z3 = ast::Int::from_i64(&ctx, hailstones[2].velocity.z as i64);
+    let a3 = ast::Int::from_i64(&ctx, hailstones[2].position.x as i64);
+    let b3 = ast::Int::from_i64(&ctx, hailstones[2].position.y as i64);
+    let c3 = ast::Int::from_i64(&ctx, hailstones[2].position.z as i64);
 
+    let x = ast::Int::new_const(&ctx, "x");
+    let y = ast::Int::new_const(&ctx, "y");
+    let z = ast::Int::new_const(&ctx, "z");
+    let a = ast::Int::new_const(&ctx, "a");
+    let b = ast::Int::new_const(&ctx, "b");
+    let c = ast::Int::new_const(&ctx, "c");
+    let t1 = ast::Int::new_const(&ctx, "t1");
+    let t2 = ast::Int::new_const(&ctx, "t2");
+    let t3 = ast::Int::new_const(&ctx, "t3");
 
+    let e1 = &t1 * x1 + a1 - &x * &t1 - &a;
+    let e2 = &t1 * y1 + b1 - &y * &t1 - &b;
+    let e3 = &t1 * z1 + c1 - &z * &t1 - &c;
+    let e4 = &t2 * x2 + a2 - &x * &t2 - &a;
+    let e5 = &t2 * y2 + b2 - &y * &t2 - &b;
+    let e6 = &t2 * z2 + c2 - &z * &t2 - &c;
+    let e7 = &t3 * x3 + a3 - &x * &t3 - &a;
+    let e8 = &t3 * y3 + b3 - &y * &t3 - &b;
+    let e9 = &t3 * z3 + c3 - &z * &t3 - &c;
+
+    let zero = ast::Int::from_i64(&ctx, 0);
+    solver.assert(&e1._eq(&zero));
+    solver.assert(&e2._eq(&zero));
+    solver.assert(&e3._eq(&zero));
+    solver.assert(&e4._eq(&zero));
+    solver.assert(&e5._eq(&zero));
+    solver.assert(&e6._eq(&zero));
+    solver.assert(&e7._eq(&zero));
+    solver.assert(&e8._eq(&zero));
+    solver.assert(&e9._eq(&zero));
+    solver.assert(&t1.gt(&zero));
+    solver.assert(&t2.gt(&zero));
+    solver.assert(&t3.gt(&zero));
+
+    match solver.check() {
+        SatResult::Sat => {
+            let model = solver.get_model().unwrap();
+
+            // let solution_x = model.eval(&x, true).unwrap().as_i64().unwrap();
+            // let solution_y = model.eval(&y, true).unwrap().as_i64().unwrap();
+            // let solution_z = model.eval(&z, true).unwrap().as_i64().unwrap();
+            let solution_a = model.eval(&a, true).unwrap().as_i64().unwrap();
+            let solution_b = model.eval(&b, true).unwrap().as_i64().unwrap();
+            let solution_c = model.eval(&c, true).unwrap().as_i64().unwrap();
+
+            println!("Solution found:");
+            println!("a = {:?}", solution_a);
+            println!("b = {:?}", solution_b);
+            println!("c = {:?}", solution_c);
+            return (solution_a + solution_b + solution_c) as usize;
+        }
+        _ => {
+            println!("No solution found.");
+        }
+    }
     0
 }
-
 
 pub async fn advent_2(data: String) -> usize {
     let hailstones = parse1(data);

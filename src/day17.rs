@@ -1,6 +1,6 @@
-use std::collections::{VecDeque, HashSet, HashMap};
+use std::{collections::{VecDeque, HashSet, HashMap}, io::Cursor};
 use priority_queue::PriorityQueue;
-
+use std::slice::Iter;
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
 enum Direction {
     N,
@@ -9,155 +9,206 @@ enum Direction {
     W,
     None
 }
+impl Direction {
+    fn val(&self) -> i64 {
+        match self {
+            Direction::E => 1,
+            Direction::W => -1,
+            Direction::N => 2,
+            Direction::S => -2,
+            Direction::None => 0
+        }
+    }
+    fn go(&self, point: &Point) -> Point {
+        match self {
+            Direction::E => Point{x: point.x + 1, y: point.y},
+            Direction::W => Point{x: point.x - 1, y: point.y},
+            Direction::N => Point{x: point.x, y: point.y - 1},
+            Direction::S => Point{x: point.x, y: point.y + 1},
+            Direction::None => point.clone()
+        }
+    }
+    pub fn iterator() -> Iter<'static, Direction> {
+        static DIRECTIONS: [Direction; 5] = [Direction::N, Direction::S, Direction::E, Direction::W, Direction::None];
+        DIRECTIONS.iter()
+    }
+}
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
+struct Point {
+    x: i64,
+    y: i64
+}
 type Grid = Vec<Vec<usize>>;
 pub async fn advent(data: String) -> usize {
-    let mut answer = 0;
+    let grid = parse(data);
+    bfs(&grid, Point{x:0, y:0}, Point{x: grid[0].len() as i64 - 1, y: grid.len() as i64 - 1})
+}
+
+fn parse(data: String) -> Grid {
     let mut grid: Grid = Vec::new();
-    for line in data.lines() {
-        let mut row: Vec<usize> = Vec::new();
-        for c in line.chars() {
-            row.push(char::to_digit(c, 10).unwrap() as usize);
-        }
+    data.lines().for_each(|line| {
+        let mut row = Vec::<usize>::new();
+        line.chars().for_each(|c| row.push(c.to_digit(10).unwrap() as usize));
         grid.push(row);
-    }
-
-    answer = djikstra(Point{x:0,y:0}, Point{x:(grid[0].len()-1) as i32, y:(grid.len()-1) as i32}, grid);
-
-    return answer;
+    });
+    grid
 }
 
-// struct Node {
-//     x: i32,
-//     y: i32,
-//     dist: usize
-// }
-#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
-struct Point {
-    x: i32,
-    y: i32,
-}
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-struct Node {
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
+struct State {
     point: Point,
-    steps: usize,
-    dir: Direction
+    dir: Direction,
+    steps: i64,
 }
-
-fn djikstra(start: Point, target: Point, grid: Grid) -> usize {
-    let mut queue: PriorityQueue<Node, usize> = PriorityQueue::new();
-    queue.push(Node{point: start, steps: 0, dir: Direction::None}, 0);
-    let mut paths: HashMap<Node, Vec<Point>> = HashMap::new();
-
-    let mut seen: HashMap<Node, usize> = HashMap::new();
-    let mut distance = usize::MAX;
-    while !queue.is_empty() {
-        let (node, dist) = queue.pop().unwrap();
-        let x = node.point.x;
-        let y = node.point.y;
-        if x < 0 || y < 0 || x as usize >= grid[0].len() || y as usize >= grid.len() {
+impl Into<(Point, Direction, i64)> for State {
+    fn into(self) -> (Point, Direction, i64) {
+        (self.point, self.dir, self.steps)
+    }
+}
+fn bfs(grid: &Grid, start: Point, end: Point) -> usize {
+    let mut min_dist = usize::MAX;
+    let mut q = VecDeque::<(State, usize)>::new();
+    let mut seen = HashMap::<State, usize>::new();
+    let initial_state = State {
+        point: start,
+        dir: Direction::E,
+        steps: 0,
+    };
+    q.push_back((initial_state, 0));
+    seen.insert(initial_state, 0);
+    while !q.is_empty() {
+        let (state, dist) = q.pop_front().unwrap();
+        // println!("{:?}", state);
+        let (point, dir, steps): (Point, Direction, i64) = state.into();
+        if point == end {
+            min_dist = std::cmp::min(min_dist, dist);
             continue;
         }
-        if node.point == target {
-            distance = std::cmp::min(distance, dist);
-            continue;
-        }
-        let cur_dist = grid[y as usize][x as usize];
-        if seen.contains_key(&node) {
-            if seen.get(&node).unwrap() <= &dist {
-                continue;
-            }
-        }
-        seen.insert(node.clone(), dist);
-        let dirs = get_next_dirs(node.dir, node.steps == 3);
-        for dir in dirs {
-            let next_point = get_next_point(node.point, dir);
-            let steps = node.steps;
-            let new_node: Node;
-            if node.dir == dir {
-                new_node = Node {
-                    point: next_point,
-                    steps: steps + 1,
-                    dir
-                };
+        for (next_point, next_dir) in get_neighbors(grid, state) {
+            let next_steps: i64;
+            if next_dir == dir {
+                next_steps = steps + 1;
             }
             else {
-                new_node = Node {
-                    point:next_point,
-                    steps: 1,
-                    dir
-                };
+                next_steps = 0;
             }
-            queue.push(new_node, dist + cur_dist);
+            let next_state = State {
+                point: next_point,
+                dir: next_dir,
+                steps: next_steps
+            };
+            let next_dist = dist + grid[next_point.y as usize][next_point.x as usize];
+            if next_point == end {
+                min_dist = std::cmp::min(min_dist, next_dist);
+                continue;
+            }
+            if let Some(prev_dist) = seen.get(&next_state) {
+                if &next_dist < prev_dist {
+                    seen.insert(next_state, next_dist);
+                }
+                else {
+                    continue;
+                }
+            }
+            else {
+                seen.insert(next_state, next_dist);
+            }
+            q.push_back((next_state, next_dist));
         }
-        
     }
-    distance
+    min_dist
+}
+fn bfs2(grid: &Grid, start: Point, end: Point) -> usize {
+    let mut min_dist = usize::MAX;
+    let mut q = VecDeque::<(State, usize)>::new();
+    let mut seen = HashMap::<State, usize>::new();
+    let initial_state = State {
+        point: start,
+        dir: Direction::E,
+        steps: 0,
+    };
+    q.push_back((initial_state, 0));
+    seen.insert(initial_state, 0);
+    while !q.is_empty() {
+        let (state, dist) = q.pop_front().unwrap();
+        // println!("{:?}", state);
+        let (point, dir, steps): (Point, Direction, i64) = state.into();
+        // if point == end {
+        //     min_dist = std::cmp::min(min_dist, dist);
+        //     continue;
+        // }
+        for (next_point, next_dir) in get_neighbors2(grid, state) {
+            let next_steps: i64;
+            if next_dir == dir {
+                next_steps = steps + 1;
+            }
+            else {
+                next_steps = 0;
+            }
+            let next_state = State {
+                point: next_point,
+                dir: next_dir,
+                steps: next_steps
+            };
+            let next_dist = dist + grid[next_point.y as usize][next_point.x as usize];
+            if next_point == end {
+                if next_steps >= 4 {
+                    min_dist = std::cmp::min(min_dist, next_dist);
+                }
+                continue;
+            }
+            if let Some(prev_dist) = seen.get(&next_state) {
+                if &next_dist < prev_dist {
+                    seen.insert(next_state, next_dist);
+                }
+                else {
+                    continue;
+                }
+            }
+            else {
+                seen.insert(next_state, next_dist);
+            }
+            q.push_back((next_state, next_dist));
+        }
+    }
+    min_dist
 }
 
-fn get_next_point(point: Point, dir: Direction) -> Point {
+fn get_neighbors(grid: &Grid, state: State) -> Vec<(Point, Direction)> {
+    let mut ret = Vec::<(Point, Direction)>::new();
+    for dir in Direction::iterator() {
+        if dir.val() == -state.dir.val() || (dir == &state.dir && state.steps == 2) || dir.val() == 0 {
+            continue;
+        }
+        let next = dir.go(&state.point);
+        if is_valid_point(next, grid) {
+            ret.push((next, dir.clone()));
+        }
+    }
+    ret
+}
+
+fn get_neighbors2(grid: &Grid, state: State) -> Vec<(Point, Direction)> {
+    let mut ret = Vec::<(Point, Direction)>::new();
+    for dir in Direction::iterator() {
+        if (state.steps < 3 && dir != &state.dir) || dir.val() == -state.dir.val() || (dir == &state.dir && state.steps == 9) || dir.val() == 0 {
+            continue;
+        }
+        let next = dir.go(&state.point);
+        if is_valid_point(next, grid) {
+            ret.push((next, dir.clone()));
+        }
+    }
+    ret
+}
+
+fn is_valid_point(point: Point, grid: &Grid) -> bool {
     let x = point.x;
     let y = point.y;
-    match dir {
-        Direction::E => {
-            return Point {x: x+1, y};
-        },
-        Direction::N => {
-            return Point {x, y: y-1};
-        },
-        Direction::S => {
-            return Point {x, y: y+1};
-        },
-        Direction::W => {
-            return Point {x: x-1, y};
-        },
-        Direction::None => {
-            panic!("oops!");
-        }
-    };
-}
-
-fn get_next_dirs(dir: Direction, need_turn: bool) -> Vec<Direction> {
-    let mut dirs: Vec<Direction> = Vec::new();
-    match dir {
-        Direction::E => {
-            dirs.push(Direction::S);
-            dirs.push(Direction::N);
-            if !need_turn {
-                dirs.push(Direction::E);
-            }
-        },
-        Direction::N => {
-            dirs.push(Direction::E);
-            dirs.push(Direction::W);
-            if !need_turn {
-                dirs.push(Direction::N);
-            }
-        },
-        Direction::S => {
-            dirs.push(Direction::E);
-            dirs.push(Direction::W);
-            if !need_turn {
-                dirs.push(Direction::S);
-            }
-        },
-        Direction::W => {
-            dirs.push(Direction::N);
-            dirs.push(Direction::S);
-            if !need_turn {
-                dirs.push(Direction::W);
-            }
-        },
-        Direction::None => {
-            dirs.push(Direction::E);
-            dirs.push(Direction::S);
-        }
-    }
-
-    dirs
+    x >= 0 && y >= 0 && (y as usize) < grid.len() && (x as usize) < grid[0].len()
 }
 
 pub async fn advent_2(data: String) -> usize {
-    let mut answer = 0;
-
-    return answer;
+    let grid = parse(data);
+    bfs2(&grid, Point{x:0, y:0}, Point{x: grid[0].len() as i64 - 1, y: grid.len() as i64 - 1})
 }
