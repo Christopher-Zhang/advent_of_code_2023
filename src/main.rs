@@ -2,8 +2,8 @@ use std::time::Instant;
 use std::fs;
 use anyhow::Result;
 
-use crate::day19::{advent, advent_2};
-mod day19;
+use crate::day25::{advent, advent_2};
+mod day25;
 
 #[tokio::main]
 async fn main() -> Result<()> {

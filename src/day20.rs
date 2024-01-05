@@ -51,14 +51,27 @@ fn send(from: String, to: String, signal: Signal, queue: &mut VecDeque<(String, 
     }
     queue.push_back((to, signal));
 }
-fn button(nodes: &mut Vec<Node>, debug: bool, do_increment: bool) -> bool {
+fn button(nodes: &mut Vec<Node>, debug: bool, do_increment: bool) -> (bool,bool,bool,bool) {
     let mut queue: VecDeque<(String, Signal)> = VecDeque::new();
     queue.push_back((String::from("roadcaster"), Signal::Low));
     increment(Signal::Low, do_increment);
+    let mut sb = false;
+    let mut nd = false;
+    let mut ds = false;
+    let mut hf = false;
     while !queue.is_empty() {
         let (current_name, signal) = queue.pop_front().unwrap();
         // println!("{:?} sent to {}", signal, current_name);
         let node_index = get_node_index(&current_name, nodes).expect("failed to find node");
+        if signal == Signal::Low {
+            match current_name.as_str() {
+                "sb" => sb = true,
+                "nd" => nd = true,
+                "ds" => ds = true,
+                "hf" => hf = true,
+                _ => ()
+            };
+        }
         match nodes[node_index].gate_type {
             GateType::Broadcaster => {
                 for target in nodes[node_index].targets.iter() {
@@ -75,7 +88,6 @@ fn button(nodes: &mut Vec<Node>, debug: bool, do_increment: bool) -> bool {
                     for target in nodes[node_index].targets.iter() {
                         targets.push(target.to_string());
                     }
-                    // dbg!(&targets);
                     for target in targets {
                         let target_node_index = get_node_index(target.as_str(), nodes).expect("failed to find node");
                         nodes[target_node_index].sources.insert(current_name.clone(), new_signal);
@@ -105,18 +117,12 @@ fn button(nodes: &mut Vec<Node>, debug: bool, do_increment: bool) -> bool {
                     send(current_name.clone(), target.to_string(), nodes[node_index].signal, &mut queue, debug);
                 }
             },
-            GateType::None => {
-                // println!("unexpected none type for {current_name}");
-                // count += 1;
-                if signal == Signal::Low {
-                    return true;
-                }
-            },
+            _ => ()
         }
     }
-    return false;
-
+    return (sb,nd,ds,hf);
 }
+
 pub async fn advent(data: String) -> usize {
     unsafe {
         HIGH = 0;
@@ -180,9 +186,7 @@ pub async fn advent(data: String) -> usize {
             }
         });
     }
-    
-    // dbg!(nodes);
-    // return 0;
+
     for _ in 0..1000 {
         button(&mut nodes, false, true);
     }
@@ -190,8 +194,7 @@ pub async fn advent(data: String) -> usize {
         return HIGH * LOW;
     }
 }
-// 534115736 too low
-// 604542150 too low
+
 pub async fn advent_2(data: String) -> usize {
     let mut nodes: Vec<Node> = Vec::new();
     for line in data.lines() {
@@ -252,13 +255,22 @@ pub async fn advent_2(data: String) -> usize {
         });
     }
     let mut i = 0;
+    let mut counts: [usize; 4] = [0; 4];
     loop {
         i += 1;
         if i % 100000 == 0 {
             println!("{i} iterations...");
         }
-        if button(&mut nodes, false, false) {
-            return i;
+        let results = button(&mut nodes, false, false);
+        for (counter, result) in [results.0, results.1, results.2, results.3].iter().enumerate() {
+            if *result && counts[counter] == 0 {
+                println!("Period for {counter} is {i}");
+                counts[counter] = i;
+            }
         }
+        if counts.iter().all(|v| v != &0) {
+            break;
+        } 
     }
+    return counts.iter().fold(1, |a,b| a * b);
 }

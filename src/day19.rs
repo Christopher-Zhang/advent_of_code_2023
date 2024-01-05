@@ -126,7 +126,82 @@ fn parse(data: String) -> (Vec<Workflow>, Vec<Part>) {
 }
 
 pub async fn advent_2(data: String) -> usize {
-    let mut answer = 0;
+    let (workflows, _) = parse(data);
+    return solve_2(&workflows);
+}
 
-    return answer;
+// #[derive(PartialEq, Debug, Clone)]
+// struct Ranges {
+//     x: (usize, usize),
+//     m: (usize, usize),
+//     a: (usize, usize),
+//     s: (usize, usize),
+// }
+
+type Ranges = [(usize, usize); 4];
+fn solve_2(workflows: &Vec<Workflow>) -> usize {
+    let start = workflows.iter().find(|w| w.name == "in").unwrap();
+    let ranges: Ranges = [(1,4000); 4];
+
+    dfs(start, ranges, workflows)
+}
+
+fn dfs(workflow: &Workflow, ranges: Ranges, workflows: &Vec<Workflow>) -> usize {
+    let mut ret = 0;
+
+    for rule in workflow.rules.iter() {
+        if rule.rule == 0 {
+            if rule.target == "A" {
+                ret += get_ways(ranges);
+            }
+            break;
+        }
+
+        let range_index = match rule.letter {
+            'x' => 0,
+            'm' => 1,
+            'a' => 2,
+            's' => 3,
+            _ => panic!("unexpected state")
+        };
+        let range = ranges[range_index];
+        if let Some(new_range) = get_range(rule.rule, range) {
+            if rule.target == "R" {
+                continue;
+                // need opposite range
+            }
+            let next_workflow = workflows.iter().find(|w| w.name == rule.target).unwrap();
+            let mut next_ranges = ranges.clone();
+            next_ranges[range_index] = new_range;
+            ret += dfs()
+        }
+
+    }
+
+    ret
+}
+
+fn get_range(rule: i64, range: (usize, usize)) -> Option<(usize, usize)> {
+    // need to split the range and do both cases: succeed the check and don't succeed the check
+    if rule > 0 {
+        let rule = rule as usize;
+        if rule < range.1 {
+            return Some((std::cmp::max(rule + 1, range.0), range.1));
+        }
+    }
+    else if rule < 0 {
+        let rule = (-rule) as usize;
+        if rule > range.0 {
+            return Some((range.0, std::cmp::min(rule - 1, range.1)));
+        }
+    }
+    None
+}
+
+fn get_ways(ranges: Ranges) -> usize {
+    let mut ret = 1;
+    for range in ranges {
+        ret *= range.1 - range.0 + 1;
+    }
+    ret
 }
