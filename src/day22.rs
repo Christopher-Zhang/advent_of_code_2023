@@ -3,21 +3,37 @@ use std::collections::HashMap;
 use regex::Regex;
 
 pub async fn advent(data: String) -> usize {
-    let (mut bricks, mut space) = parse(data);
-    solve(&mut bricks, &mut space)
+    let (mut bricks, mut space, xyz) = parse(data);
+    // _display(&space, &xyz);
+    solve(&mut bricks, &mut space, &xyz);
+    let a = 10;
+    let b = 2;
+    println!("range between {} and {} is {:?}", a,b,range(a,b));
+    let a = 1;
+    let b = 2;
+    println!("range between {} and {} is {:?}", a,b,range(a,b));
+    let a = 10;
+    let b = 10;
+    println!("range between {} and {} is {:?}", a,b,range(a,b));
+    // _display(&space, &xyz);
+    0
 }
 
-fn solve(bricks: &mut Vec<Brick>, space: &mut Space) -> usize {
+fn solve(bricks: &mut Vec<Brick>, space: &mut Space, xyz: &Point) -> usize {
     let mut count = 0;
-    let mut did_move = true;
-    while !did_move {
+    let mut done = vec![true; bricks.len()];
+    while done.iter().any(|v| v == &true) {
         for brick_num in 0..bricks.len() {
-            if !fall(brick_num, bricks, space) {
-                did_move = false;
-            }
+            done[brick_num] = fall(brick_num, bricks, space);
+            // did_move |= fall(brick_num, bricks, space);
+        }
+        for brick_num in (0..bricks.len()).rev() {
+            done[brick_num] = fall(brick_num, bricks, space);
             // did_move |= fall(brick_num, bricks, space);
         }
     }
+    _display(&space, &xyz);
+    fall(6, bricks, space);    
 
     let mut supports = HashMap::<usize, Vec<usize>>::new();
     let mut is_supported_by = HashMap::<usize, Vec<usize>>::new();
@@ -79,7 +95,7 @@ struct Brick {
     end: Point
 }
 
-fn parse(data: String) -> (Vec<Brick>, Space) {
+fn parse(data: String) -> (Vec<Brick>, Space, Point) {
     let mut x: isize = 0;
     let mut y: isize = 0;
     let mut z: isize = 0;
@@ -113,7 +129,7 @@ fn parse(data: String) -> (Vec<Brick>, Space) {
         for x in range(brick.start.x, brick.end.x) {
             for y in range(brick.start.y, brick.end.y) {
                 for z in range(brick.start.z, brick.end.z) {
-                    space.insert(Point{x,y,z}, bricks.len());
+                    space.insert(Point{x,y,z}, brick_num);
                 }
             }
         }
@@ -125,9 +141,10 @@ fn parse(data: String) -> (Vec<Brick>, Space) {
         return za.cmp(&zb);
     });
 
-    println!("{:?}", &bricks);
+    // println!("{:?}", &bricks);
+    println!("{} bricks", bricks.len());
 
-    (bricks, space)
+    (bricks, space, Point{x,y,z})
     
 }
 
@@ -153,8 +170,11 @@ fn fall(brick_num: usize, bricks: &mut Vec<Brick>, space: &mut Space) -> bool {
         for x in range(brick.start.x, brick.end.x) {
             for y in range(brick.start.y, brick.end.y) {
                 for z in range(brick.start.z, brick.end.z) {
-                    space.remove(&Point{x,y,z});
-                    space.insert(Point{x,y,z: z-1}, brick_num);
+                    // println!("trying {x},{y},{z}");
+                    if let Some(v) = space.remove(&Point{x,y,z}) {
+                        println!("removed {:?}", v);
+                        space.insert(Point{x,y,z: z-1}, brick_num);
+                    }
                 }
             }
         }
@@ -172,6 +192,40 @@ fn range(a: isize, b: isize) -> Vec<isize> {
         return (a..=b).rev().collect_vec();
     }
     (a..=b).collect_vec()
+}
+
+fn _display(space: &Space, xyz: &Point) {
+    println!("x axis:");
+    for z in (0..=xyz.z).rev() {
+        print!("{z}: ");
+        for x in 0..=xyz.x {
+            let mut tile = ".".to_string();
+            for y in 0..=xyz.y {
+                if let Some(v) = space.get(&Point{x,y,z}) {
+                    tile = v.to_string();
+                    break;
+                }
+            }
+            print!("{tile}");
+        }
+        println!();
+    }
+
+    println!("y axis:");
+    for z in (0..=xyz.z).rev() {
+        print!("{z}: ");
+        for y in 0..=xyz.y {
+            let mut tile = ".".to_string();
+            for x in 0..=xyz.x {
+                if let Some(v) = space.get(&Point{x,y,z}) {
+                    tile = v.to_string();
+                    break;
+                }
+            }
+            print!("{tile}");
+        }
+        println!();
+    }
 }
 pub async fn advent_2(data: String) -> usize {
     let mut answer = 0;
