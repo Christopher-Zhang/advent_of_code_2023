@@ -28,6 +28,7 @@ dependencies = [
  "http 1.0.0",
  "indexmap 2.1.0",
  "itertools",
+ "lazy_static",
  "pathfinding",
  "priority-queue",
  "rand",
