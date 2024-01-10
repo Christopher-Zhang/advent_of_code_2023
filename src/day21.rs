@@ -137,16 +137,43 @@ pub async fn advent_2(data: String) -> usize {
     println!("{odds} odds and {evens} evens");
     println!("{width} width and {height} height");
     // println!("{}", count(&mut grid, (0,0), &mut mem));
-    for n in (2 * width + 1)..(5*width) {
+    for n in (width + 1)..(5*width) {
         let mut seen = HashSet::<Point>::new();
-        let a = solve(&grid, &mut seen, start, n);
+        let a = solve_check(&grid, &mut seen, start, n);
         let b = solve2(odds, evens, width, height, n, &memmap);
         assert_eq!(a, b, "Reference {a} not equal to attempt {b} when num_steps = {n}");
     }
     // solve2(odds, evens, width, height, 26501365, &memmap)
     0
 }
+fn solve_check(grid: &Grid, seen: &mut HashSet<Point>, start: Point, steps: usize) -> usize {
+    let mut count = 0;
+    let mut queue: VecDeque<Point> = VecDeque::new();
+    queue.push_back(start);
+    for current_step in 0..steps+1 {
+        // println!("step {current_step}");
+        let mut next: VecDeque<Point> = VecDeque::new();
+        while !queue.is_empty() {
+            let current = queue.pop_front().unwrap();
+            if seen.contains(&current) {
+                continue;
+            }
+            if current_step == steps {
+                count += 1;
+                seen.insert(current.clone());
+            }
 
+            let neighbors = get_valid_neighbors2(grid, current, seen);
+            for neighbor in neighbors {
+                if !next.contains(&neighbor) {
+                    next.push_back(neighbor);
+                }
+            }
+        }
+        queue = next;
+    }
+    count
+}
 fn solve2(odds: usize, evens: usize, width: usize, height: usize, total_steps: usize, memmap: &MemMap) -> usize {
     let mut total = 0;
     let strides = total_steps / width; 
@@ -174,9 +201,9 @@ fn solve2(odds: usize, evens: usize, width: usize, height: usize, total_steps: u
     // [(0,0), (0,height/2), (0,height-1), (width/2,0), (width-1,0), (width-1, height-1), (width/2, height-1), (width-1, height/2)]
     let sides = vec![(0,height/2), (width/2,0), (width/2, height-1), (width-1, height/2)];
     let corners = vec![(0,0), (0,height-1), (width-1,0), (width-1, height-1)];
-    if leftover > 0 && strides > 1 {
+    if leftover > 0 {
         for side in sides {
-            leftovers += memmap.get(&side).unwrap()[width - 2 + leftover];
+            leftovers += memmap.get(&side).unwrap()[width + leftover - 3];
         }
         for corner in corners {
             leftovers += memmap.get(&corner).unwrap()[width / 2 + leftover];
@@ -272,7 +299,38 @@ fn get_neighbors(grid: &Grid, point: Point) -> Vec<Point> {
 
     neighbors
 }
+fn get_valid_neighbors2(grid: &Grid, point: Point, seen: &HashSet<Point>) -> Vec<Point> {
+    let mut neighbors: Vec<Point> = Vec::new();
+    let directions: Vec<(i64, i64)> = vec![(0,1),(0,-1),(1,0),(-1,0)];
 
+    let x = point.0 as i64;
+    let y = point.1 as i64;
+
+    for dir in directions {
+        if is_valid3(x+dir.0, y+dir.1, grid, seen) {
+            neighbors.push(((x+dir.0) as usize, (y+dir.1) as usize));
+        }
+    }
+
+    neighbors
+}
+
+fn is_valid3(x: i64, y: i64, grid: &Grid, seen: &HashSet<Point>) -> bool {
+    let mut x = x % grid[0].len() as i64;
+    let mut y = y % grid.len() as i64;
+    if x < 0 {
+        x += grid[0].len() as i64;
+    }
+    if y < 0 {
+        y += grid.len() as i64;
+    }
+    let x = x as usize;
+    let y = y as usize;
+    if grid[y][x] == '#' || seen.contains(&(x,y)){
+        return false;
+    }
+    true
+}
 fn is_valid2(x: i64, y: i64, grid: &Grid) -> bool {
     if x < 0 || y < 0 {
         return false;
