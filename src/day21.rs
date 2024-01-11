@@ -1,24 +1,24 @@
-use std::{collections::{HashSet, VecDeque, HashMap}, mem};
+use std::collections::{HashSet, VecDeque, HashMap};
 use cached::proc_macro::cached;
 use itertools::Itertools;
 type Grid = Vec<Vec<char>>;
 type Row = Vec<char>;
 type Point = (usize, usize);
+type IPoint = (i64, i64);
+static DIRECTIONS: [(i64,i64); 4] = [(0,1),(0,-1),(1,0),(-1,0)];
+
 pub async fn advent(data: String) -> usize {
-    let answer;
-    let mut seen: HashSet<Point> = HashSet::new();
+    
     let (grid, start) = parse(data);
-    answer = solve(&grid, &mut seen, start, 64);
-    // print_seen(&grid, &seen);
-    return answer;
+    solve(&grid, start, 64)
 }
 
-fn solve(grid: &Grid, seen: &mut HashSet<Point>, start: Point, steps: usize) -> usize {
+fn solve(grid: &Grid, start: Point, steps: usize) -> usize {
     let mut count = 0;
     let mut queue: VecDeque<Point> = VecDeque::new();
+    let mut seen: HashSet<Point> = HashSet::new();
     queue.push_back(start);
     for current_step in 0..steps+1 {
-        // println!("step {current_step}");
         let mut next: VecDeque<Point> = VecDeque::new();
         while !queue.is_empty() {
             let current = queue.pop_front().unwrap();
@@ -30,7 +30,7 @@ fn solve(grid: &Grid, seen: &mut HashSet<Point>, start: Point, steps: usize) -> 
                 seen.insert(current.clone());
             }
 
-            let neighbors = get_valid_neighbors(grid, current, seen);
+            let neighbors = get_neighbors(grid, current, &seen);
             for neighbor in neighbors {
                 if !next.contains(&neighbor) {
                     next.push_back(neighbor);
@@ -42,21 +42,15 @@ fn solve(grid: &Grid, seen: &mut HashSet<Point>, start: Point, steps: usize) -> 
     count
 }
 
-// #[cached(key="String", convert=r##"{ format!("{},{}", point.0, point.1) }"##)]
-fn get_valid_neighbors(grid: &Grid, point: Point, seen: &HashSet<Point>) -> Vec<Point> {
-    let mut neighbors: Vec<Point> = Vec::new();
-    let directions: Vec<(i64, i64)> = vec![(0,1),(0,-1),(1,0),(-1,0)];
-
+fn get_neighbors(grid: &Grid, point: Point, seen: &HashSet<Point>) -> Vec<Point> {
     let x = point.0 as i64;
     let y = point.1 as i64;
-
-    for dir in directions {
+    DIRECTIONS.iter().filter_map(|dir| {
         if is_valid(x+dir.0, y+dir.1, grid, seen) {
-            neighbors.push(((x+dir.0) as usize, (y+dir.1) as usize));
+            return Some(((x+dir.0) as usize, (y+dir.1) as usize));
         }
-    }
-
-    neighbors
+        None
+    }).collect_vec()
 }
 
 fn is_valid(x: i64, y: i64, grid: &Grid, seen: &HashSet<Point>) -> bool {
@@ -70,22 +64,7 @@ fn is_valid(x: i64, y: i64, grid: &Grid, seen: &HashSet<Point>) -> bool {
     }
     true
 }
-// fn is_valid2(x: i64, y: i64, grid: &Grid) -> bool {
-//     let mut x = x % grid[0].len() as i64;
-//     let mut y = y % grid.len() as i64;
-//     if x < 0 {
-//         x = grid[0].len() as i64 + x;
-//     }
-//     if y < 0 {
-//         y = grid.len() as i64 + y;
-//     }
-//     let x = x as usize;
-//     let y = y as usize;
-//     if grid[y][x] == '#' {//|| seen.contains(&(x,y)){
-//         return false;
-//     }
-//     true
-// }
+
 fn parse(data: String) -> (Grid, Point) {
     let mut grid: Grid = Vec::new();
     let mut start: Point = (0,0);
@@ -102,7 +81,7 @@ fn parse(data: String) -> (Grid, Point) {
     (grid, start)
 }
 
-fn print_seen(grid: &Grid, seen: &HashSet<Point>) -> () {
+fn _print_seen(grid: &Grid, seen: &HashSet<Point>) -> () {
     for (y,row) in grid.iter().enumerate() {
         let mut st = "".to_string();
         for (x,c) in row.iter().enumerate() {
@@ -120,59 +99,65 @@ fn print_seen(grid: &Grid, seen: &HashSet<Point>) -> () {
 type MemMap = HashMap<Point, Vec<usize>>;
 type Mem = Vec<usize>;
 pub async fn advent_2(data: String) -> usize {
-    let (mut grid, start, width, height) = parse2(data);
-    
-    let (odds, evens) = odds_and_evens(&mut grid, start);
-    let poi = points_of_interest(width, height);
-    // let mem = Vec::<Vec<usize>>::new();
+    let (mut grid, _, width, height) = parse2(data.clone());
+    let mut odds = 0;
+    let mut evens = 0;
     let mut memmap: MemMap = HashMap::new();
-    // let mut mem: Mem = vec![0];
-    for point in poi.iter() {
-            let mut mem: Mem = vec![1];
-        count(&mut grid, start, &mut mem);
+    for point in corners_and_edges(width, height).iter() {
+        let mut mem: Mem = vec![0];
+        (odds, evens) = fill_memmap(&mut grid, point.clone(), &mut mem);
         memmap.insert(*point, mem);
     }
-    // _print(&grid, &poi);
-    // dbg!(memmap);
-    println!("{odds} odds and {evens} evens");
-    println!("{width} width and {height} height");
-    // println!("{}", count(&mut grid, (0,0), &mut mem));
-    for n in (width + 1)..(5*width) {
-        let mut seen = HashSet::<Point>::new();
-        let a = solve_check(&grid, &mut seen, start, n);
-        let b = solve2(odds, evens, width, height, n, &memmap);
-        assert_eq!(a, b, "Reference {a} not equal to attempt {b} when num_steps = {n}");
-    }
-    // solve2(odds, evens, width, height, 26501365, &memmap)
-    0
-}
-fn solve_check(grid: &Grid, seen: &mut HashSet<Point>, start: Point, steps: usize) -> usize {
-    let mut count = 0;
-    let mut queue: VecDeque<Point> = VecDeque::new();
-    queue.push_back(start);
-    for current_step in 0..steps+1 {
-        // println!("step {current_step}");
-        let mut next: VecDeque<Point> = VecDeque::new();
-        while !queue.is_empty() {
-            let current = queue.pop_front().unwrap();
-            if seen.contains(&current) {
-                continue;
-            }
-            if current_step == steps {
-                count += 1;
-                seen.insert(current.clone());
-            }
+    // println!("{odds} odds and {evens} evens");
+    // println!("{width} width and {height} height");
+    solve2(odds, evens, width, height, 26501365, &memmap)
 
-            let neighbors = get_valid_neighbors2(grid, current, seen);
-            for neighbor in neighbors {
-                if !next.contains(&neighbor) {
-                    next.push_back(neighbor);
-                }
-            }
+    // println!("{}", count(&mut grid, (0,0), &mut mem));
+    //// verify that verify() is correct against the example daya
+    // let tests = [(6, 16), (10,50), (50, 1594), (100, 6536)];
+    // let (grid, start, width, height) = parse2(data);
+    // for (steps, test) in tests {
+    //     let attempt = solve_check(&grid, start, steps);
+    //     assert_eq!(test, attempt, "VERIFY SOLVE_CHECK: Reference {test} != attempt {attempt} with steps {steps}");
+    // }
+
+    //// verify that my solve 2 is correct
+    // for n in (width)..(5*width) {
+    //     // let mut seen = HashSet::<Point>::new();
+    //     let a = solve_check(&grid, start, n);
+    //     let b = solve2(odds, evens, width, height, n, &memmap);
+    //     assert_eq!(a, b, "VERIFY SOLVE2: Reference {a} not equal to attempt {b} when num_steps = {n}");
+    // }
+}
+
+#[cached(key="String", convert=r##"{ format!("{}", steps) }"##)]
+fn _verify(grid: &Grid, start: Point, steps: usize) -> usize {
+    let mut queue: VecDeque<(IPoint, usize)> = VecDeque::new();
+    let mut odds = 0;
+    let mut evens = 0;
+    let mut seen: HashMap<IPoint, usize> = HashMap::new();
+    queue.push_back(((start.0 as i64, start.1 as i64), 0));
+    seen.insert((start.0 as i64, start.1 as i64), 0);
+    while !queue.is_empty() {
+        let (current, step) = queue.pop_front().unwrap();
+        if step > steps {
+            break;
         }
-        queue = next;
+        if step % 2 == 0 {
+            evens += 1;
+        }
+        else {
+            odds += 1;
+        }
+        for neighbor in get_neighbors_infinite(grid, current, &seen) {
+            queue.push_back((neighbor, step + 1));
+            seen.insert(neighbor, (step + 1) % 2);
+        }
     }
-    count
+    match steps % 2 {
+        0 => evens,
+        _ => odds
+    }
 }
 fn solve2(odds: usize, evens: usize, width: usize, height: usize, total_steps: usize, memmap: &MemMap) -> usize {
     let mut total = 0;
@@ -186,8 +171,9 @@ fn solve2(odds: usize, evens: usize, width: usize, height: usize, total_steps: u
         total += odds;
     }
 
-    for x in 1..=strides {
-        even = !even;
+    for stride in 1..strides {
+        let x = stride + 1;
+        even = !even; 
         if even {
             total += (4 * x - 4) * evens;
         }
@@ -198,147 +184,109 @@ fn solve2(odds: usize, evens: usize, width: usize, height: usize, total_steps: u
 
     // deal with leftovers
     let mut leftovers = 0;
-    // [(0,0), (0,height/2), (0,height-1), (width/2,0), (width-1,0), (width-1, height-1), (width/2, height-1), (width-1, height/2)]
     let sides = vec![(0,height/2), (width/2,0), (width/2, height-1), (width-1, height/2)];
     let corners = vec![(0,0), (0,height-1), (width-1,0), (width-1, height-1)];
+    let mut total_corners = 0;
+    let mut total_edges = 0;
     if leftover > 0 {
-        for side in sides {
-            leftovers += memmap.get(&side).unwrap()[width + leftover - 3];
-        }
-        for corner in corners {
-            leftovers += memmap.get(&corner).unwrap()[width / 2 + leftover];
+        for _ in 1..=strides {
+            for corner in corners.iter() {
+                total_corners += memmap.get(&corner).unwrap()[leftover-1];
+            }
         }
     }
-
+    for _ in 1..strides {
+        for corner in corners.iter() {
+            let map = memmap.get(&corner).unwrap();
+            total_corners += map[(leftover + width - 1) % map.len()];
+        }
+    }
+    for side in sides {
+        total_edges += memmap.get(&side).unwrap()[leftover + width/2];
+        if leftover > width/2 {
+            total_edges += memmap.get(&side).unwrap()[leftover - width/2 - 1];
+        }
+    }
+    leftovers += total_corners + total_edges;
     total + leftovers
 }
 
 fn parse2(data: String) -> (Grid, Point, usize, usize) {
     let mut start: Point = (0,0);
-    let grid = data.lines().enumerate().map(|(y,line)| {
+    let mut grid = data.lines().enumerate().map(|(y,line)| {
         if let Some(x) = line.chars().position(|c| c == 'S') {
             start = (x,y).clone();
         }
         line.chars().collect_vec()
     }).collect_vec();
+    grid[start.1][start.0] = '.'; // clear 'S"
     let (width, height) = (grid[0].len(), grid.len());
     (grid, start, width, height)
 }
-fn odds_and_evens(grid: &mut Grid, start: Point) -> (usize, usize) {
-    let mut odds = 0;
-    let mut evens = 0;
-    let mut q = VecDeque::<(Point, usize)>::new();
-    q.push_back((start, 0));
-    while !q.is_empty() {
-        let (current, step) = q.pop_front().unwrap();
-        let x = current.0;
-        let y = current.1;
-        if !is_valid2(x as i64, y as i64, grid) {
-            continue;
-        }
-        let marker: char;
-        if step % 2 == 0 {
-            marker = 'E';
-            evens += 1;
-        }
-        else {
-            marker = 'O';
-            odds += 1;
-        }
 
-        grid[y][x] = marker;
-
-        for neighbor in get_neighbors(grid, current) {
-            q.push_back((neighbor, step+1));
-        }
-    }
-    (odds, evens)
-}
-
-fn count (grid: &mut Grid, start: Point, mem: &mut Mem) -> usize {
+fn fill_memmap(grid: &mut Grid, start: Point, mem: &mut Mem) -> (usize, usize) {
     let mut seen = HashSet::<Point>::new();
     let mut q = VecDeque::<(Point, usize)>::new();
     q.push_back((start, 0));
     seen.insert(start);
-
-    let mut max = 0;
+    let mut odds = 0;
+    let mut evens = 0;
     while !q.is_empty() {
         let (current, step) = q.pop_front().unwrap();
+        let push = match step % 2 {
+            0 => {
+                odds += 1;
+                odds
+            },
+            _ => {
+                evens += 1;
+                evens
+            }
+        };
         if step >= mem.len() {
-            mem.push(mem[mem.len()-1] + 1);
+            mem.push(push);
         }
         else {
-            mem[step] += 1;
+            mem[step] = push;
         }
-        max = std::cmp::max(max, step);
-        for neighbor in get_valid_neighbors(grid, current, &seen) {
-            seen.insert(neighbor);
-            q.push_back((neighbor, step+1));
+
+        for neighbor in get_neighbors(grid, current, &seen) {
+            if !seen.contains(&neighbor) {
+                q.push_back((neighbor, step+1));
+                seen.insert(neighbor);
+            }
         }
     }
-    max
+    mem.push(mem[mem.len()-1]);
+    (odds, evens)
 }
 
-fn points_of_interest(width: usize, height: usize) -> Vec<Point> {
+fn corners_and_edges(width: usize, height: usize) -> Vec<Point> {
     vec![(0,0), (0,height/2), (0,height-1), (width/2,0), (width-1,0), (width-1, height-1), (width/2, height-1), (width-1, height/2)]
 }
 
-// #[cached(key="String", convert=r##"{ format!("{},{}", point.0, point.1) }"##)]
-fn get_neighbors(grid: &Grid, point: Point) -> Vec<Point> {
-    let mut neighbors: Vec<Point> = Vec::new();
-    let directions: Vec<(i64, i64)> = vec![(0,1),(0,-1),(1,0),(-1,0)];
-
-    let x = point.0 as i64;
-    let y = point.1 as i64;
-
-    for dir in directions {
-        if is_valid2(x+dir.0, y+dir.1, grid) {
-            neighbors.push(((x+dir.0) as usize, (y+dir.1) as usize));
+fn get_neighbors_infinite(grid: &Grid, point: IPoint, seen: &HashMap<IPoint, usize>) -> Vec<IPoint> {
+    let mut neighbors: Vec<IPoint> = Vec::new();
+    for dir in DIRECTIONS {
+        if is_valid_infinite(point.0+dir.0, point.1+dir.1, grid, seen) {
+            neighbors.push(((point.0+dir.0), (point.1+dir.1)));
         }
     }
-
-    neighbors
-}
-fn get_valid_neighbors2(grid: &Grid, point: Point, seen: &HashSet<Point>) -> Vec<Point> {
-    let mut neighbors: Vec<Point> = Vec::new();
-    let directions: Vec<(i64, i64)> = vec![(0,1),(0,-1),(1,0),(-1,0)];
-
-    let x = point.0 as i64;
-    let y = point.1 as i64;
-
-    for dir in directions {
-        if is_valid3(x+dir.0, y+dir.1, grid, seen) {
-            neighbors.push(((x+dir.0) as usize, (y+dir.1) as usize));
-        }
-    }
-
     neighbors
 }
 
-fn is_valid3(x: i64, y: i64, grid: &Grid, seen: &HashSet<Point>) -> bool {
-    let mut x = x % grid[0].len() as i64;
-    let mut y = y % grid.len() as i64;
+fn is_valid_infinite(xi: i64, yi: i64, grid: &Grid, seen: &HashMap<IPoint, usize>) -> bool {
+    let mut x = xi % grid[0].len() as i64;
+    let mut y = yi % grid.len() as i64;
     if x < 0 {
         x += grid[0].len() as i64;
     }
     if y < 0 {
         y += grid.len() as i64;
     }
-    let x = x as usize;
-    let y = y as usize;
-    if grid[y][x] == '#' || seen.contains(&(x,y)){
-        return false;
-    }
-    true
-}
-fn is_valid2(x: i64, y: i64, grid: &Grid) -> bool {
-    if x < 0 || y < 0 {
-        return false;
-    }
-    let x = x as usize;
-    let y = y as usize;
-    let invalid = ['#', 'E', 'O'];
-    if y >= grid.len() || x >= grid[0].len() || invalid.contains(&grid[y][x]) {
+    let xu = x as usize;
+    let yu = y as usize;
+    if grid[yu][xu] == '#' || seen.contains_key(&(xi,yi)){
         return false;
     }
     true
